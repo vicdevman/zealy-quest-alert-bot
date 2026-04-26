@@ -20,6 +20,10 @@ const bot = new TelegramBot(token, {
 
 bot.setWebHook(`https://7755bf2493b3.ngrok-free.app/bot`);
 
+app.get('/', (req, res) => {
+  res.send('Bot is running! on https://t.me/zealyquestalert_bot');
+});
+
 app.post(`/bot`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
