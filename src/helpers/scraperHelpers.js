@@ -44,6 +44,30 @@ export async function scrapeAllUrls(urls, scrapePage) {
   return newScrapedData;
 }
 
+// Detect additions between old and new content
+function detectAdditions(oldContent, newContent) {
+  const oldLines = oldContent.split('\n');
+  const newLines = newContent.split('\n');
+  const additions = [];
+
+  // Simple line-by-line diff to find additions
+  let oldIndex = 0;
+  let newIndex = 0;
+
+  while (newIndex < newLines.length) {
+    if (oldIndex < oldLines.length && oldLines[oldIndex] === newLines[newIndex]) {
+      oldIndex++;
+      newIndex++;
+    } else {
+      // This line is new (addition)
+      additions.push(newLines[newIndex]);
+      newIndex++;
+    }
+  }
+
+  return additions.join('\n').trim();
+}
+
 // Compare scraped data with database and detect changes
 export async function detectContentChanges(newScrapedData) {
   logStatus('Comparing scraped data with database...');
@@ -67,6 +91,9 @@ export async function detectContentChanges(newScrapedData) {
     const newContent = data.data.content || '';
 
     if (existingContent !== newContent) {
+      // Detect additions
+      const additions = detectAdditions(existingContent, newContent);
+
       await ScrapedContent.findOneAndUpdate({
         url
       }, {
@@ -83,7 +110,8 @@ export async function detectContentChanges(newScrapedData) {
       });
       alerts.push({
         url,
-        data
+        data,
+        additions
       });
       logStatus(`🔄 Content changed for: ${url}`);
     } else {
@@ -108,9 +136,17 @@ export async function sendAlertsToUsers(alerts, bot) {
   for (const user of users) {
     for (const alert of alerts) {
       try {
+        let message = `🚀 New quest update for ${alert.url}\n\n`;
+
+        if (alert.additions && alert.additions.length > 0) {
+          message += `� New content:\n${alert.additions.substring(0, 1000)}${alert.additions.length > 1000 ? '...' : ''}\n\n`;
+        }
+
+        message += `Go for it!`;
+
         await bot.sendMessage(
           user.telegram_chat_id,
-          `🚀 New quest update for ${alert.url}, \n Go for it`,
+          message,
         );
         logStatus(`📤 Alert sent to user ${user.username}`);
       } catch (error) {
