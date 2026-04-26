@@ -130,8 +130,10 @@ export async function sendAlertsToUsers(alerts, bot) {
   }
 
   logStatus('Fetching users to send alerts...');
-  const users = await User.find({});
-  logStatus(`Found ${users.length} users to notify`);
+  const users = await User.find({
+    blocked: false
+  });
+  logStatus(`Found ${users.length} active users to notify`);
 
   for (const user of users) {
     for (const alert of alerts) {
@@ -139,7 +141,7 @@ export async function sendAlertsToUsers(alerts, bot) {
         let message = `🚀 New quest update for ${alert.url}\n\n`;
 
         if (alert.additions && alert.additions.length > 0) {
-          message += `� New content:\n${alert.additions.substring(0, 1000)}${alert.additions.length > 1000 ? '...' : ''}\n\n`;
+          message += `📝 New content:\n${alert.additions.substring(0, 600)}${alert.additions.length > 600 ? '...' : ''}\n\n`;
         }
 
         message += `Go for it!`;

@@ -103,7 +103,66 @@ fetch('https://zealy-quest-alert-bot.onrender.com/api/users')
 
 ---
 
-### 3. Get API Documentation
+### 3. Get Server Health
+Returns server health status and last successful scrape time.
+
+**Endpoint:** `GET /api/health`
+
+**Response:**
+```json
+{
+  "success": true,
+  "lastScrapeTime": "2024-04-26T18:00:00.000Z" or null,
+  "status": "active" or "pending"
+}
+```
+
+**Example Request:**
+```bash
+curl https://zealy-quest-alert-bot.onrender.com/api/health
+```
+
+---
+
+### 4. Toggle User Blocked Status
+Toggle a user's blocked status to control whether they receive Telegram alerts.
+
+**Endpoint:** `PUT /api/users/:telegram_chat_id/block`
+
+**Request Body:**
+```json
+{
+  "blocked": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User blocked successfully",
+  "data": {
+    "_id": "string",
+    "name": "John",
+    "username": "johndoe",
+    "telegram_chat_id": "123456789",
+    "blocked": true,
+    "createdAt": "ISODate",
+    "updatedAt": "ISODate"
+  }
+}
+```
+
+**Example Request:**
+```bash
+curl -X PUT https://zealy-quest-alert-bot.onrender.com/api/users/123456789/block \
+  -H "Content-Type: application/json" \
+  -d '{"blocked": true}'
+```
+
+---
+
+### 5. Get API Documentation
 Returns this API documentation in JSON format.
 
 **Endpoint:** `GET /api/docs`
@@ -137,7 +196,7 @@ Returns this API documentation in JSON format.
 
 ---
 
-### 4. Trigger Scraper Job
+### 6. Trigger Scraper Job
 Manually triggers the scraper to check all monitored URLs for changes and send Telegram alerts if content changes are detected.
 
 **Endpoint:** `GET /scraper`
@@ -183,7 +242,8 @@ curl https://zealy-quest-alert-bot.onrender.com/scraper
   name: string;             // User's first name
   username: string;         // Telegram username (unique)
   telegram_chat_id: string; // Telegram chat ID for notifications (unique)
-  createdAt: string;        // ISO timestamp when user registered
+  blocked: boolean;         // Whether user is blocked from receiving alerts (default: false)
+  createdAt: string;        // ISO timestamp when user was registered
   updatedAt: string;        // ISO timestamp when user was last updated
 }
 ```
@@ -325,8 +385,12 @@ export default {
 - Responses are sorted by `createdAt` in descending order (newest first)
 - The `/scraper` endpoint automatically sends Telegram alerts when content changes are detected
 - Only the 'content' field is compared for changes (ignores metadata, external, usage, and timestamps)
-- Telegram bot commands: `/start`, `/add <url>`, `/list`, `/remove <url>`
+- Blocked users (blocked: true) will not receive Telegram alerts
+- Use `/start` command to resubscribe (sets blocked: false)
+- Use `/stop` command to unsubscribe (sets blocked: true)
+- Telegram bot commands: `/start`, `/add <url>`, `/list`, `/remove <url>`, `/stop`
 - If no URLs are being monitored, the scraper returns early without attempting to scrape
+- The `/api/health` endpoint provides last successful scrape time for server monitoring
 
 ## Error Handling
 

@@ -29,6 +29,9 @@ connectDB();
 const PORT = process.env.PORT;
 const token = process.env.TELEGRAM_BOT_KEY;
 
+// In-memory store for last successful scrape time
+let lastSuccessfulScrapeTime = null;
+
 const bot = new TelegramBot(token, {
   polling: false,
 });
@@ -48,6 +51,9 @@ app.get("/setup", async(req, res) => {
     }, {
       command: "remove",
       description: "Remove monitored sprint",
+    }, {
+      command: "stop",
+      description: "Unsubscribe from alerts",
     }, ]);
     res.send("Webhook and commands set successfully!");
   } catch (error) {
@@ -109,6 +115,61 @@ app.get("/api/users", async(req, res) => {
   }
 });
 
+// Get last successful scrape time
+app.get("/api/health", (req, res) => {
+  res.json({
+    success: true,
+    lastScrapeTime: lastSuccessfulScrapeTime,
+    status: lastSuccessfulScrapeTime ? "active" : "pending"
+  });
+});
+
+// Toggle user blocked status
+app.put("/api/users/:telegram_chat_id/block", async(req, res) => {
+  try {
+    const {
+      telegram_chat_id
+    } = req.params;
+    const {
+      blocked
+    } = req.body;
+
+    if (typeof blocked !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: "blocked field must be a boolean"
+      });
+    }
+
+    const user = await User.findOneAndUpdate({
+      telegram_chat_id
+    }, {
+      blocked
+    }, {
+      returnDocument: 'after'
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `User ${blocked ? 'blocked' : 'unblocked'} successfully`,
+      data: user
+    });
+  } catch (error) {
+    console.error("Error toggling user block status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update user status"
+    });
+  }
+});
+
 // Get API documentation
 app.get("/api/docs", (req, res) => {
   res.json({
@@ -132,7 +193,28 @@ app.get("/api/docs", (req, res) => {
       response: {
         success: "boolean",
         count: "number",
-        data: "Array of user objects with name, username, telegram_chat_id, timestamps"
+        data: "Array of user objects with name, username, telegram_chat_id, blocked, timestamps"
+      }
+    }, {
+      method: "GET",
+      path: "/api/health",
+      description: "Get server health status and last successful scrape time",
+      response: {
+        success: "boolean",
+        lastScrapeTime: "string (ISODate) or null",
+        status: "string (active or pending)"
+      }
+    }, {
+      method: "PUT",
+      path: "/api/users/:telegram_chat_id/block",
+      description: "Toggle user blocked status (true = no alerts, false = receive alerts)",
+      body: {
+        blocked: "boolean (required)"
+      },
+      response: {
+        success: "boolean",
+        message: "string",
+        data: "Updated user object"
       }
     }, {
       method: "GET",
@@ -145,7 +227,8 @@ app.get("/api/docs", (req, res) => {
       response: {
         message: "string",
         alertsFound: "number",
-        usersNotified: "number"
+        usersNotified: "number",
+        lastScrapeTime: "string (ISODate) or null"
       }
     }],
     dataModels: {
@@ -165,6 +248,7 @@ app.get("/api/docs", (req, res) => {
         name: "string - User's first name",
         username: "string - Telegram username (unique)",
         telegram_chat_id: "string (unique) - Telegram chat ID for notifications",
+        blocked: "boolean - Whether user is blocked from receiving alerts (default: false)",
         createdAt: "ISODate - When the user was registered",
         updatedAt: "ISODate - When the user was last updated"
       }
@@ -174,7 +258,10 @@ app.get("/api/docs", (req, res) => {
       "Responses are sorted by createdAt in descending order (newest first)",
       "The /scraper endpoint automatically sends Telegram alerts when content changes are detected",
       "Only the 'content' field is compared for changes (ignores metadata, external, usage, and timestamps)",
-      "Telegram bot commands: /start, /add <url>, /list, /remove <url>"
+      "Blocked users (blocked: true) will not receive Telegram alerts",
+      "Use /start command to resubscribe (sets blocked: false)",
+      "Use /stop command to unsubscribe (sets blocked: true)",
+      "Telegram bot commands: /start, /add <url>, /list, /remove <url>, /stop"
     ]
   });
 });
@@ -191,6 +278,7 @@ app.get("/scraper", async(req, res) => {
         message: "No URLs to monitor",
         alertsFound: 0,
         usersNotified: 0,
+        lastScrapeTime: lastSuccessfulScrapeTime
       });
       return;
     }
@@ -199,17 +287,22 @@ app.get("/scraper", async(req, res) => {
     const alerts = await detectContentChanges(newScrapedData);
     await sendAlertsToUsers(alerts, bot);
 
+    // Update last successful scrape time
+    lastSuccessfulScrapeTime = new Date().toISOString();
+
     logStatus('=== Scraper job completed ===');
 
     res.status(200).json({
       message: "Scraper Successful",
       alertsFound: alerts.length,
       usersNotified: alerts.length > 0 ? await User.countDocuments() : 0,
+      lastScrapeTime: lastSuccessfulScrapeTime
     });
   } catch (error) {
     logStatus(`❌ Scraper error: ${error.message}`);
     res.status(500).json({
       error: "Scraper failed",
+      lastScrapeTime: lastSuccessfulScrapeTime
     });
   }
 });
@@ -219,14 +312,15 @@ bot.onText(/\/start/, async(msg) => {
   const username = msg.chat.username;
   const firstName = msg.chat.first_name;
 
-  // Store user details in DB
+  // Store user details in DB and unblock if blocked
   try {
-    await User.findOneAndUpdate({
+    const user = await User.findOneAndUpdate({
       telegram_chat_id: chatId.toString(),
     }, {
       name: firstName || "Unknown",
       username: username || "unknown",
       telegram_chat_id: chatId.toString(),
+      blocked: false
     }, {
       upsert: true,
       returnDocument: 'after'
@@ -238,7 +332,7 @@ bot.onText(/\/start/, async(msg) => {
 
   bot.sendMessage(
     chatId,
-    `Bot active! You have subscribe to receive zealy quest alerts from monitored sprints.\n\nCommands:\n/add ZEALY_SPRINTS_URL - Add a new sprint to monitor\n/list - View all monitored sprints\n/remove ZEALY_SPRINTS_URL - Remove a sprint from monitoring`,
+    `Bot active! You have subscribe to receive zealy quest alerts from monitored sprints.\n\nCommands:\n/add ZEALY_SPRINTS_URL - Add a new sprint to monitor\n/list - View all monitored sprints\n/remove ZEALY_SPRINTS_URL - Remove a sprint from monitoring\n/stop - Unsubscribe from alerts`,
   );
 });
 
@@ -345,8 +439,35 @@ bot.onText(/\/remove (.+)/, async(msg, match) => {
   }
 });
 
+bot.onText(/\/stop/, async(msg) => {
+  const chatId = msg.chat.id;
+
+  try {
+    const user = await User.findOneAndUpdate({
+      telegram_chat_id: chatId.toString()
+    }, {
+      blocked: true
+    }, {
+      returnDocument: 'after'
+    });
+
+    if (!user) {
+      await bot.sendMessage(chatId, "You are not registered. Use /start to register.");
+      return;
+    }
+
+    await bot.sendMessage(
+      chatId,
+      `✅ You have been unsubscribed from quest alerts.\n\nUse /start to resubscribe at any time.`,
+    );
+  } catch (error) {
+    console.error("Error unsubscribing user:", error);
+    await bot.sendMessage(chatId, "Failed to unsubscribe. Please try again.");
+  }
+});
+
 bot.on("message", async(msg) => {
-  const commands = ["start", "add", "list", "remove"];
+  const commands = ["start", "add", "list", "remove", "stop"];
 
   if (msg && msg.text[0] === "/") {
     const command = msg.text.split("/");
