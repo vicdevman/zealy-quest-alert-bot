@@ -88,7 +88,7 @@ export async function detectContentChanges(newScrapedData) {
 
     // Compare only the content field (the actual quest content)
     const existingContent = existing.content;
-    const newContent = data.data.content || '';
+    const newContent = data.data.data.content || '';
 
     if (existingContent !== newContent) {
       // Detect additions
@@ -97,12 +97,12 @@ export async function detectContentChanges(newScrapedData) {
       await ScrapedContent.findOneAndUpdate({
         url
       }, {
-        title: data.data.title || existing.title,
-        description: data.data.description || existing.description,
+        title: data.data.data.title || existing.title,
+        description: data.data.data.description || existing.description,
         content: newContent,
-        metadata: data.data.metadata || existing.metadata,
-        external: data.data.external || existing.external,
-        usage: data.data.usage || existing.usage,
+        metadata: data.data.data.metadata || existing.metadata,
+        external: data.data.data.external || existing.external,
+        usage: data.data.data.usage || existing.usage,
         scrapedAt: new Date()
       }, {
         upsert: true,

@@ -276,12 +276,12 @@ bot.onText(/\/add (.+)/, async(msg, match) => {
     // Store URL and scraped content in DB
     await ScrapedContent.create({
       url,
-      title: scrapedData.data.title || 'No title',
-      description: scrapedData.data.description || '',
-      content: scrapedData.data.content || '',
-      metadata: scrapedData.data.metadata || {},
-      external: scrapedData.data.external || {},
-      usage: scrapedData.data.usage || {},
+      title: scrapedData.data.data.title || 'No title',
+      description: scrapedData.data.data.description || '',
+      content: scrapedData.data.data.content || '',
+      metadata: scrapedData.data.data.metadata || {},
+      external: scrapedData.data.data.external || {},
+      usage: scrapedData.data.data.usage || {},
       scrapedAt: new Date()
     });
 
