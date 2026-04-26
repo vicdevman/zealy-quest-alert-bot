@@ -85,7 +85,7 @@ app.get("/scraper", async(req, res) => {
           scrapedcontent: data,
         }, {
           upsert: true,
-          new: true,
+          returnDocument: 'after'
         }, );
         alerts.push({
           url,
@@ -135,7 +135,7 @@ bot.onText(/\/start/, async(msg) => {
       telegram_chat_id: chatId.toString(),
     }, {
       upsert: true,
-      new: true,
+      returnDocument: 'after'
     }, );
     console.log("User stored:", chatId, username, firstName);
   } catch (error) {
