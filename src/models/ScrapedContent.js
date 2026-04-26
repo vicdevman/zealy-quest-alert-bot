@@ -6,9 +6,33 @@ const scrapedContentSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  scrapedcontent: {
-    type: mongoose.Schema.Types.Mixed,
+  title: {
+    type: String,
     required: true
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  content: {
+    type: String,
+    required: true
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  external: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  usage: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  scrapedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true

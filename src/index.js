@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import dotenv from "dotenv";
 import TelegramBot from "node-telegram-bot-api";
 import {
@@ -21,6 +22,7 @@ import {
 const app = express();
 dotenv.config();
 
+app.use(cors());
 app.use(express.json());
 connectDB();
 
@@ -63,6 +65,118 @@ app.get("/", (req, res) => {
 app.post(`/bot`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
+});
+
+// API Routes for Frontend Integration
+
+// Get all scraped content data
+app.get("/api/scraped-content", async(req, res) => {
+  try {
+    const scrapedContent = await ScrapedContent.find({}).sort({
+      createdAt: -1
+    });
+    res.status(200).json({
+      success: true,
+      count: scrapedContent.length,
+      data: scrapedContent
+    });
+  } catch (error) {
+    console.error("Error fetching scraped content:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch scraped content"
+    });
+  }
+});
+
+// Get all user data
+app.get("/api/users", async(req, res) => {
+  try {
+    const users = await User.find({}).sort({
+      createdAt: -1
+    });
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch users"
+    });
+  }
+});
+
+// Get API documentation
+app.get("/api/docs", (req, res) => {
+  res.json({
+    success: true,
+    message: "Zealy Quest Alert Bot API Documentation",
+    version: "1.0.0",
+    baseUrl: req.protocol + "://" + req.get("host"),
+    endpoints: [{
+      method: "GET",
+      path: "/api/scraped-content",
+      description: "Get all scraped content data from monitored sprints",
+      response: {
+        success: "boolean",
+        count: "number",
+        data: "Array of scraped content objects with url, title, description, content, metadata, external, usage, timestamps"
+      }
+    }, {
+      method: "GET",
+      path: "/api/users",
+      description: "Get all user data",
+      response: {
+        success: "boolean",
+        count: "number",
+        data: "Array of user objects with name, username, telegram_chat_id, timestamps"
+      }
+    }, {
+      method: "GET",
+      path: "/api/docs",
+      description: "Get this API documentation"
+    }, {
+      method: "GET",
+      path: "/scraper",
+      description: "Trigger manual scraper job (checks all monitored URLs for changes)",
+      response: {
+        message: "string",
+        alertsFound: "number",
+        usersNotified: "number"
+      }
+    }],
+    dataModels: {
+      ScrapedContent: {
+        url: "string (unique) - The monitored URL",
+        title: "string - Sprint title from Zealy",
+        description: "string - Sprint description",
+        content: "string - Main quest content (compared for changes)",
+        metadata: "object - Page metadata",
+        external: "object - External resources",
+        usage: "object - Usage stats",
+        scrapedAt: "ISODate - When content was scraped",
+        createdAt: "ISODate - When the URL was first added",
+        updatedAt: "ISODate - When the content was last updated"
+      },
+      User: {
+        name: "string - User's first name",
+        username: "string - Telegram username (unique)",
+        telegram_chat_id: "string (unique) - Telegram chat ID for notifications",
+        createdAt: "ISODate - When the user was registered",
+        updatedAt: "ISODate - When the user was last updated"
+      }
+    },
+    notes: [
+      "All endpoints support CORS from any origin",
+      "Responses are sorted by createdAt in descending order (newest first)",
+      "The /scraper endpoint automatically sends Telegram alerts when content changes are detected",
+      "Only the 'content' field is compared for changes (ignores metadata, external, usage, and timestamps)",
+      "Telegram bot commands: /start, /add <url>, /list, /remove <url>"
+    ]
+  });
 });
 
 app.get("/scraper", async(req, res) => {
@@ -158,7 +272,13 @@ bot.onText(/\/add (.+)/, async(msg, match) => {
     // Store URL and scraped content in DB
     await ScrapedContent.create({
       url,
-      scrapedcontent: scrapedData,
+      title: scrapedData.data.title || 'No title',
+      description: scrapedData.data.description || '',
+      content: scrapedData.data.content || '',
+      metadata: scrapedData.data.metadata || {},
+      external: scrapedData.data.external || {},
+      usage: scrapedData.data.usage || {},
+      scrapedAt: new Date()
     });
 
     await bot.sendMessage(

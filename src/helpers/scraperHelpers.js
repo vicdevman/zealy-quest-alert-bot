@@ -62,15 +62,21 @@ export async function detectContentChanges(newScrapedData) {
       continue;
     }
 
-    // Compare only the data content, ignoring scrapedAt timestamp
-    const existingContent = JSON.stringify(existing.scrapedcontent.data);
-    const newContent = JSON.stringify(data.data);
+    // Compare only the content field (the actual quest content)
+    const existingContent = existing.content;
+    const newContent = data.data.content || '';
 
     if (existingContent !== newContent) {
       await ScrapedContent.findOneAndUpdate({
         url
       }, {
-        scrapedcontent: data
+        title: data.data.title || existing.title,
+        description: data.data.description || existing.description,
+        content: newContent,
+        metadata: data.data.metadata || existing.metadata,
+        external: data.data.external || existing.external,
+        usage: data.data.usage || existing.usage,
+        scrapedAt: new Date()
       }, {
         upsert: true,
         returnDocument: 'after'
