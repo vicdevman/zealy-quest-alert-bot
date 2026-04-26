@@ -62,7 +62,11 @@ export async function detectContentChanges(newScrapedData) {
       continue;
     }
 
-    if (JSON.stringify(existing.scrapedcontent) !== JSON.stringify(data)) {
+    // Compare only the data content, ignoring scrapedAt timestamp
+    const existingContent = JSON.stringify(existing.scrapedcontent.data);
+    const newContent = JSON.stringify(data.data);
+
+    if (existingContent !== newContent) {
       await ScrapedContent.findOneAndUpdate({
         url
       }, {
@@ -100,7 +104,7 @@ export async function sendAlertsToUsers(alerts, bot) {
       try {
         await bot.sendMessage(
           user.telegram_chat_id,
-          `🚀 New quest update for ${alert.url}, Go for it`,
+          `🚀 New quest update for ${alert.url}, \n Go for it`,
         );
         logStatus(`📤 Alert sent to user ${user.username}`);
       } catch (error) {
