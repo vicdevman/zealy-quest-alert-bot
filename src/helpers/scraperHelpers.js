@@ -138,12 +138,57 @@ export function extractRelevantContent(content) {
   return relevantLines.join('\n').trim();
 }
 
-// Validate that scraped content has minimum meaningful length
+// Validate that scraped content has minimum meaningful length and expected sections
 export function isValidScrapedContent(content, minLength = 300) {
   if (!content) return false;
 
   const relevantContent = extractRelevantContent(content);
-  return relevantContent.length >= minLength;
+
+  // Check minimum length
+  if (relevantContent.length < minLength) {
+    return false;
+  }
+
+  // Check for minimum number of quest links (at least 3 expected for a valid quest board)
+  const questLinkMatches = content.match(/\[.*\]\(https:\/\/zealy\.io\/cw\/.*\/questboard\/.*\)/g);
+  if (!questLinkMatches || questLinkMatches.length < 3) {
+    return false;
+  }
+
+  // Check for multiple sections - a valid quest board should have at least 2 distinct sections
+  // Sections are typically headers followed by content (like "Daily Challenge", "Onboarding", custom names)
+  const lines = content.split('\n');
+  let sectionCount = 0;
+  let lastLineWasHeader = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Detect section headers (lines with no brackets, not just numbers, and followed by content)
+    if (trimmed.length > 0 &&
+      !trimmed.startsWith('[') &&
+      !trimmed.startsWith('!') &&
+      !trimmed.startsWith('#') &&
+      !/^\d+$/.test(trimmed) &&
+      !trimmed.includes('Zaps') &&
+      !trimmed.includes('Xp') &&
+      !trimmed.includes('All') &&
+      !trimmed.includes('Locked')) {
+      // This could be a section header
+      if (!lastLineWasHeader) {
+        sectionCount++;
+        lastLineWasHeader = true;
+      }
+    } else if (trimmed.length > 0) {
+      lastLineWasHeader = false;
+    }
+  }
+
+  // If we have very few sections, it's likely incomplete/glitched
+  if (sectionCount < 2) {
+    return false;
+  }
+
+  return true;
 }
 
 // Extract only new quest items from additions (post-processing)
@@ -302,10 +347,8 @@ export async function sendAlertsToUsers(alerts, bot) {
 
         if (alert.additions && alert.additions.length > 0) {
           let snippet = alert.additions;
-          if (snippet.length > 600) {
-            const front = snippet.substring(0, 300);
-            const back = snippet.substring(snippet.length - 300);
-            snippet = `${front}\n...\n${back}`;
+          if (snippet.length > 300) {
+            snippet = `...\n${snippet.substring(snippet.length - 300)}`;
           }
           message += `📝 New content:\n${snippet}\n\n`;
         }
