@@ -46,8 +46,12 @@ export async function scrapeAllUrls(urls, scrapePage) {
 
 // Detect additions between old and new content
 export function detectAdditions(oldContent, newContent) {
-  const oldLines = oldContent.split('\n');
-  const newLines = newContent.split('\n');
+  // Extract only relevant content before diffing
+  const oldRelevant = extractRelevantContent(oldContent);
+  const newRelevant = extractRelevantContent(newContent);
+
+  const oldLines = oldRelevant.split('\n');
+  const newLines = newRelevant.split('\n');
 
   // Find the longest common prefix
   let prefixLength = 0;
@@ -77,7 +81,7 @@ export function detectAdditions(oldContent, newContent) {
 }
 
 // Extract only the relevant quest content (ignoring ads, tracking, and footer)
-function extractRelevantContent(content) {
+export function extractRelevantContent(content) {
   if (!content) return '';
 
   const lines = content.split('\n');
@@ -133,7 +137,7 @@ function extractRelevantContent(content) {
 }
 
 // Normalize content for comparison (remove dynamic elements and whitespace)
-function normalizeContent(content) {
+export function normalizeContent(content) {
   if (!content) return '';
 
   // First extract only relevant content
