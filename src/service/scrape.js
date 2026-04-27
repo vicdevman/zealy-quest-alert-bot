@@ -22,9 +22,12 @@ dotenv.config({
  * @returns {Object} Extracted content with title, text, and metadata
  */
 export async function scrapePage(url) {
+
+  const timestamp = Date.now()
+
   try {
     console.log('Scraping with Jina AI:', url);
-    const jinaUrl = `https://r.jina.ai/${url}`;
+    const jinaUrl = `https://r.jina.ai/${url}?t=${timestamp}`;
 
     const response = await axios.get(jinaUrl, {
       headers: {
