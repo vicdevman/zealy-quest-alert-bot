@@ -299,6 +299,12 @@ export async function detectContentChanges(newScrapedData) {
       // Post-process to extract only new quest items
       const newQuestItems = extractNewQuestItems(additions);
 
+      // Validate that post-processing produced meaningful content
+      if (!newQuestItems || newQuestItems.length < 50) {
+        logStatus(`⚠️  Post-processing produced no meaningful content for: ${url} - likely glitched scrape, skipping`);
+        continue;
+      }
+
       await ScrapedContent.findOneAndUpdate({
         url
       }, {
