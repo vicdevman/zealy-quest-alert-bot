@@ -353,7 +353,7 @@ export async function sendAlertsToUsers(alerts, bot) {
         const urlMatch = alert.url.match(/zealy\.io\/cw\/([^\/]+)/);
         const sprintName = urlMatch ? urlMatch[1] : 'Sprint';
 
-        let message = `🎯 New ${sprintName} Quests\n\n`;
+        let message = `🎯 New ${sprintName} Quests\nQuest Board: ${alert.url}\n\n`;
 
         if (alert.additions && alert.additions.length > 0) {
           let snippet = alert.additions;
